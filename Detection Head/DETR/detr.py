@@ -158,13 +158,14 @@ class DETR(nn.Module):
         return cls, bbx
 
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-test = torch.randn(4, 3, 256, 256).to(device)
-model = DETR(num_cls=4, num_layers=6, embed_size=256, heads=8, dropout=0, forward_expansion=4)
-model = model.to(device)
-cls_test, bbx_test = model(test)
-print(cls_test.shape)
-print(bbx_test.shape)
+if __name__ == '__main__':
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    test = torch.randn(4, 3, 256, 256).to(device)
+    model = DETR(num_cls=4, num_layers=6, embed_size=256, heads=8, dropout=0, forward_expansion=4)
+    model = model.to(device)
+    cls_test, bbx_test = model(test)
+    print(cls_test.shape)
+    print(bbx_test.shape)
 
 
 
