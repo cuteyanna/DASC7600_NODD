@@ -37,4 +37,6 @@ def generalized_box_iou(box1, box2):
 
 
 if __name__ == '__main__':
-    test =
+    test_box1 = torch.randn(32, 4).sigmoid()
+    test_box2 = torch.randn(32, 4).sigmoid()
+    print(generalized_box_iou(test_box1, test_box2))
