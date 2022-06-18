@@ -1,6 +1,15 @@
 import torch
 
 
+def rescale_bboxes(out_bbox, size):
+    # size is img.size
+    img_w, img_h = size
+    # convert cxcy to xyxy
+    xyxy = box_cxcywh_to_xyxy(out_bbox)
+    b = xyxy * torch.tensor([img_w, img_h, img_w, img_h], dtype=torch.float32)
+    return b
+
+
 def box_cxcywh_to_xyxy(x):
     """
     :param x: bounding box with (x_center, y_center, width, height) format
@@ -10,14 +19,6 @@ def box_cxcywh_to_xyxy(x):
     b = [(x_c - 0.5 * w), (y_c - 0.5 * h),
          (x_c + 0.5 * w), (y_c + 0.5 * h)]
     return torch.stack(b, dim=-1)
-
-def rescale_bboxes(out_bbox,size):
-    # size is img.size
-    img_w, img_h = size
-    # convert cxcy to xyxy
-    xyxy = box_cxcywh_to_xyxy(out_bbox)
-    b = xyxy * torch.tensor([img_w,img_h,img_w,img_h], dtype = torch.float32)
-    return b
 
 
 def box_iou(box1, box2):

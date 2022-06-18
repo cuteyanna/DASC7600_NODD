@@ -8,7 +8,7 @@ from utils import NestedTensor
 
 class BackboneBase(nn.Module):
 
-    def __init__(self,backbone,train_backbone,num_channels,return_interm_layers):
+    def __init__(self, backbone, train_backbone, num_channels, return_interm_layers):
         super().__init__()
         for name, parameter in backbone.named_parameters():
             if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
@@ -23,7 +23,7 @@ class BackboneBase(nn.Module):
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
         self.num_channels = num_channels
 
-    def forward(self,tensor_list):
+    def forward(self, tensor_list):
         xs = self.body(tensor_list.tensors)
         out = {}
         m = tensor_list.mask

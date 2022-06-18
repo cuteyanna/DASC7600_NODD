@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from scipy.optimize import linear_sum_assignment
 
-from box_ops import box_cxcywh_to_xyxy, generalized_box_iou
+from box_ops import box_cxcywh_to_xyxy, rescale_bboxes, generalized_box_iou
 
 
 class DETRLoss(nn.Module):
@@ -12,7 +12,7 @@ class DETRLoss(nn.Module):
         self.lambda_iou = lambda_iou
         self.lambda_L1 = lambda_L1
 
-    def forward(self, outputs, targets):
+    def forward(self, outputs, targets, size):
         # "pred_logits": (N, num_queries, num_class+1)
         # "pred_boxes" : (N, num_queries, 4)
 
@@ -24,6 +24,7 @@ class DETRLoss(nn.Module):
         # len(tgt['label]) = N
         # tensor : (num_targets)
         N, num_queries = outputs["pred_logits"].shape[0], outputs["pred_logits"].shape[1]
+        device = outputs["pred_logits"].device
 
         # We flatten to compute the cost matrices in a batch
         out_prob = outputs["pred_logits"].flatten(0, 1).softmax(-1)  # [batch_size * num_queries, num_classes]
@@ -32,20 +33,23 @@ class DETRLoss(nn.Module):
         # Then we concat all the targets together for the convenience of computation
         # We would split them later, no worries about the batch-crossed linkage (Wont be used later)
         # Also concat the target labels and boxes
-        tgt_ids = torch.cat([v["labels"] for v in targets])
-        tgt_bbox = torch.cat([v["boxes"] for v in targets])
+        # [{'labels': tensor(num_targets), 'boxes': tensor(num_targets, 4)}, {...}, {...}, {...}]
+        tgt_ids = torch.cat([v["labels"] for v in targets]).to(device)
+        tgt_bbox = torch.cat([v["boxes"] for v in targets]).to(device)
 
         # calculate probability here, measure how accurate the class is
         # we want to minimize (1 - out_prob(of the gt class)) (out_prob->1)->(loss->0)
         cost_class = -out_prob[:, tgt_ids]  # (N*num_queries, len(tgt_ids))
         # Compute the L1 cost between boxes
+        out_bbox = rescale_bboxes(out_bbox, size=size)
+        tgt_bbox = box_cxcywh_to_xyxy(tgt_bbox)
         # p indicates using L1Norm, Shape: (N*num_queries, len(tgt_ids))
-        cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
-        cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
+        cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1) / (sum(size)/2)
+        cost_giou = -generalized_box_iou(out_bbox, tgt_bbox)
 
         Cost = self.lambda_L1 * cost_bbox + self.lambda_cls * cost_class + self.lambda_iou * cost_giou
         Cost = Cost.reshape(N, num_queries, -1)
-        C = Cost.cpu()
+        C = Cost.detach().cpu()
 
         sizes = [len(v["boxes"]) for v in targets]
         multiplier = torch.zeros_like(Cost)
@@ -73,7 +77,7 @@ if __name__ == '__main__':
              'pred_boxes': torch.randn(N, num_queries, 4).sigmoid()}
 
     targets = []
-    for i in range(N):
+    for _ in range(N):
         tmp = {}
         num_obj = np.random.randint(2, 20)
         tmp['labels'] = torch.randint(0, 70, [num_obj])
@@ -81,9 +85,11 @@ if __name__ == '__main__':
         # Add here just to make sure the right bottom corner value is larger than the left top
         boxes[..., 2:] += 1
         tmp['boxes'] = boxes.sigmoid()
+        print(tmp['boxes'].shape)
         targets.append(tmp)
 
     loss_fn = DETRLoss(1, 1, 1)
+    print(targets)
     print(loss_fn(preds, targets))
 
 

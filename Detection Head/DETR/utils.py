@@ -59,5 +59,5 @@ def nested_tensor_from_tensor_list(tensor_list):
             m[: img.shape[1], :img.shape[2]] = False
     else:
         raise ValueError('not supported')
-    return NestedTensor(tensor, mask)
+    return NestedTensor(tensor, mask), (h, w)
 
