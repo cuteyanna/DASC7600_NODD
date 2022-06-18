@@ -130,7 +130,7 @@ class DETR(nn.Module):
 
         assert embed_size % 2 == 0, "Embedding Size should be divided by 2"
 
-        self.backbone = nn.Sequential(*list(resnet50(pretrained=True).children())[:-2])
+        # self.backbone = nn.Sequential(*list(resnet50(pretrained=True).children())[:-2])
         self.conv = nn.Conv2d(in_channels=2048, out_channels=embed_size, kernel_size=(1, 1))
         self.encoder = Encoder(num_layers, embed_size, heads, dropout, forward_expansion)
         self.decoder = Decoder(num_cls, num_layers, embed_size, heads, dropout, forward_expansion)
@@ -139,7 +139,7 @@ class DETR(nn.Module):
         self.obj_queries = nn.Parameter(torch.rand(100, embed_size))
 
     def forward(self, x):
-        h = self.conv(self.backbone(x))  # Channels: 3 -> 2048 -> embedding size
+        h = self.conv(x)  # Channels: 3 -> 2048 -> embedding size
         N, C, H, W = h.shape
         feature_map = h.flatten(2).permute(0, 2, 1)  # (N, C, H, W)->(N, C, H*W)->(N, H*W, C)
 
@@ -155,7 +155,7 @@ class DETR(nn.Module):
         # (100, C) -> (1, 100, C) -> (N, 100, C)
         enc_out = self.encoder(feature_map, pos)
         cls, bbx = self.decoder(obj_queries_batch, enc_out, pos)
-        return cls, bbx
+        return {'pred_logits': cls, 'pred_boxes': bbx}
 
 
 if __name__ == '__main__':
@@ -163,7 +163,9 @@ if __name__ == '__main__':
     test = torch.randn(4, 3, 256, 256).to(device)
     model = DETR(num_cls=4, num_layers=6, embed_size=256, heads=8, dropout=0, forward_expansion=4)
     model = model.to(device)
-    cls_test, bbx_test = model(test)
+    pred = model(test)
+    cls_test = pred['pred_logits']
+    bbx_test = pred['pred_boxes']
     print(cls_test.shape)
     print(bbx_test.shape)
 
