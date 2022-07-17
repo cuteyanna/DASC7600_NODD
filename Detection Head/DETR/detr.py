@@ -34,8 +34,8 @@ class SelfAttention(nn.Module):
         # energy shape: (N, head, q_len, k_len)
         energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])
 
-        attention = torch.softmax(energy / (self.embed_size ** 0.5), dim=3)
-        output = torch.einsum("nhqk,nvhd->nqhd", [attention, values]).reshape(N, queries_len, self.heads * self.head_dim)
+        attention = torch.softmax(energy / (self.embed_size ** 0.5), dim=3)  # ***
+        output = torch.einsum("nhql,nlhd->nqhd", [attention, values]).reshape(N, queries_len, self.heads * self.head_dim)
         output = self.fc_out(output)
         return output
 
@@ -96,7 +96,7 @@ class DecoderBlock(nn.Module):
 
     def forward(self, x, keys, values):
         queries = self.dropout(self.norm(self.attention(x + x, x + x, x) + x))
-        out = self.transformer_block(queries + x, keys, values)  # some problems about the queries+x here...
+        out = self.transformer_block(queries, keys, values)  # some problems about the queries+x here...
         return out
 
 
@@ -109,7 +109,7 @@ class Decoder(nn.Module):
             for _ in range(num_layers)
         ])
 
-        self.fc_cls = nn.Linear(embed_size, num_cls + 1)
+        self.fc_cls = nn.Linear(embed_size, num_cls)
         self.fc_bbx = nn.Linear(embed_size, 4)
         self.dropout = nn.Dropout(dropout)
 
@@ -130,7 +130,7 @@ class DETR(nn.Module):
 
         assert embed_size % 2 == 0, "Embedding Size should be divided by 2"
 
-        self.backbone = nn.Sequential(*list(resnet50(pretrained=True).children())[:-2])
+        # self.backbone = nn.Sequential(*list(resnet50(pretrained=True).children())[:-2])
         self.conv = nn.Conv2d(in_channels=2048, out_channels=embed_size, kernel_size=(1, 1))
         self.encoder = Encoder(num_layers, embed_size, heads, dropout, forward_expansion)
         self.decoder = Decoder(num_cls, num_layers, embed_size, heads, dropout, forward_expansion)
@@ -139,7 +139,7 @@ class DETR(nn.Module):
         self.obj_queries = nn.Parameter(torch.rand(100, embed_size))
 
     def forward(self, x):
-        h = self.conv(self.backbone(x))  # Channels: 3 -> 2048 -> embedding size
+        h = self.conv(x)  # Channels: 3 -> 2048 -> embedding size
         N, C, H, W = h.shape
         feature_map = h.flatten(2).permute(0, 2, 1)  # (N, C, H, W)->(N, C, H*W)->(N, H*W, C)
 
@@ -155,17 +155,18 @@ class DETR(nn.Module):
         # (100, C) -> (1, 100, C) -> (N, 100, C)
         enc_out = self.encoder(feature_map, pos)
         cls, bbx = self.decoder(obj_queries_batch, enc_out, pos)
-        return cls, bbx
+        return {'pred_logits': cls, 'pred_boxes': bbx}
 
 
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    test = torch.randn(4, 3, 256, 256).to(device)
-    model = DETR(num_cls=4, num_layers=6, embed_size=256, heads=8, dropout=0, forward_expansion=4)
+    test = torch.rand(1, 2048, 7, 7).to(device)
+    model = DETR(num_cls=6, num_layers=3, embed_size=256, heads=8, dropout=0, forward_expansion=4)
     model = model.to(device)
-    cls_test, bbx_test = model(test)
-    print(cls_test.shape)
-    print(bbx_test.shape)
+    pred = model(test)
+    cls_test = pred['pred_logits']
+    bbx_test = pred['pred_boxes']
+
 
 
 

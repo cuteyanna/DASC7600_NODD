@@ -1,6 +1,15 @@
 import torch
 
 
+def rescale_bboxes(out_bbox, size):
+    # size is img.size
+    img_w, img_h = size
+    # convert cxcy to xyxy
+    xyxy = box_cxcywh_to_xyxy(out_bbox)
+    b = xyxy * torch.tensor([img_w, img_h, img_w, img_h], dtype=torch.float32)
+    return b
+
+
 def box_cxcywh_to_xyxy(x):
     """
     :param x: bounding box with (x_center, y_center, width, height) format
@@ -11,13 +20,12 @@ def box_cxcywh_to_xyxy(x):
          (x_c + 0.5 * w), (y_c + 0.5 * h)]
     return torch.stack(b, dim=-1)
 
-def rescale_bboxes(out_bbox,size):
-    # size is img.size
-    img_w, img_h = size
-    # convert cxcy to xyxy
-    xyxy = box_cxcywh_to_xyxy(out_bbox)
-    b = xyxy * torch.tensor([img_w,img_h,img_w,img_h], dtype = torch.float32)
-    return b
+
+def box_xyxy_to_cxcywh(x):
+    x0, y0, x1, y1 = x.unbind(-1)
+    b = [(x0 + x1) / 2, (y0 + y1) / 2,
+         (x1 - x0), (y1 - y0)]
+    return torch.stack(b, dim=-1)
 
 
 def box_iou(box1, box2):
@@ -59,7 +67,16 @@ def generalized_box_iou(box1, box2):
     return iou_mat.squeeze(-1)
 
 
+def bbox_normalize(box, w, h):
+    box[:, 0] = box[:, 0] / w  # center x
+    box[:, 1] = box[:, 1] / h  # center y
+    box[:, 2] = box[:, 2] / w  # w
+    box[:, 3] = box[:, 3] / h  # h
+    return box
+
+
 if __name__ == '__main__':
-    test_box1 = torch.as_tensor([[0.1, 0.1, 0.3, 0.3], [0.4, 0.3, 0.8, 0.8]])
+    test_box1 = torch.as_tensor([[0.1, 0.1, 0.3, 0.3], [0.4, 0.3, 0.8, 0.8], [0.2, 0.2, 0.9, 0.9]])
     test_box2 = torch.as_tensor([[0.1, 0.1, 0.3, 0.3], [0.2, 0.2, 0.8, 0.8], [0.2, 0.2, 0.9, 0.9]])
-    print(generalized_box_iou(test_box1, test_box2))
+    print(torch.sum(box_iou(test_box1, test_box2)))
+    print(bbox_normalize(test_box1, 5, 8))

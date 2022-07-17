@@ -1,4 +1,5 @@
 import torch
+import os
 
 
 # combine tensor and mask together
@@ -60,4 +61,26 @@ def nested_tensor_from_tensor_list(tensor_list):
     else:
         raise ValueError('not supported')
     return NestedTensor(tensor, mask)
+
+
+def save_checkpoint(checkpoint, epoch, root_dir='checkpoints/', filename='last_checkpoint.pth.tar', keep_all=False):
+    print('===> Saving the checkpoint')
+
+    if not os.path.exists(root_dir):
+        os.makedirs(root_dir)
+
+    if not keep_all:
+        torch.save(checkpoint, root_dir + filename)
+    else:
+        filename = 'epoch_{}_checkpoint.pth.tar'.format(epoch)
+        torch.save(checkpoint, root_dir + filename)
+
+
+def load_checkpoint(checkpoint, model, optim):
+    print('===> Loading the checkpoint')
+
+    model.load_state_dict(checkpoint['model'])
+    optim.load_state_dict(checkpoint['optim'])
+
+    return model, optim
 
