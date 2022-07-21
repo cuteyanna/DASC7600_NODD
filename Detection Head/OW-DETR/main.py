@@ -32,7 +32,7 @@ for epoch in range(NUM_EPOCH):
     nested_list = nested_tensor_from_tensor_list(tensor_list)
     h, w = nested_list.mask.shape[1], nested_list.mask.shape[2]
 
-    img_feature = backbone(nested_list)['0'].tensors
+    img_feature = backbone(nested_list)['0'].tensors  # -> (N, h, w, 2048)
     img_feature = img_feature.to(device)
     preds = model(img_feature)
     loss = criterion(preds, targets, size=(h, w))

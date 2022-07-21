@@ -16,10 +16,10 @@ class HungarianMatcher(nn.Module):
 
     @torch.no_grad()
     def forward(self, outputs, targets, size):
-        # "pred_logits": (N, num_queries, num_class+1)
+        # "pred_logits": (N, num_queries, num_class+1) (N, 5, 91) -> pred: obj score, GT: Average pixel -> loss
         # "pred_boxes" : (N, num_queries, 4)
 
-        # "labels": [(num_targets) for _ in range(N)] -> A list contains N tensor,
+        # "labels": [(num_targets) for _ in range(N)] -> A list contains N tensor, # [(10), (8), ...]
         #                                                each tensor represents a single picture's targets
         # "boxes" : [(num_targets, 4) for _ in range(N)] -> Similar to the labels
 
@@ -161,6 +161,5 @@ if __name__ == '__main__':
         tmp['boxes'] = boxes.sigmoid()
         targets.append(tmp)
 
-    # loss_fn = DETRLoss(1, 1, 1)
-    # print(loss_fn(preds, targets, size=(500, 800)))
-
+    loss_fn = DETRLoss(1, 1, 1)
+    print(loss_fn(preds, targets, size=(500, 800)))
