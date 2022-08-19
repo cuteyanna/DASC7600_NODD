@@ -14,6 +14,7 @@ class CoCoDataset(CocoDetection):
         self.transform = transform
 
     def __getitem__(self, idx):
+        img_id = self.ids[idx]
         img, tgt = super(CoCoDataset, self).__getitem__(idx)
         tgt_dict = {'labels': torch.empty(0, dtype=torch.long), 'boxes': torch.empty(0)}
         # {'label':tensor, 'boxes':tensor}
@@ -27,7 +28,7 @@ class CoCoDataset(CocoDetection):
         if self.transform is not None:
             img = self.transform(img)
 
-        return img, tgt_dict
+        return img_id, (img, tgt_dict)
 
 
 def detection_collate(batch):
@@ -35,12 +36,15 @@ def detection_collate(batch):
     :param batch: A batch contain imgs and annotation
     :return: (list of image, list of annotation)
     """
-    targets = []
+    img_ids = []
     imgs = []
-    for img, tgt in batch:
+    targets = []
+
+    for img_id, (img, tgt) in batch:
+        img_ids.append(img_id)
         imgs.append(img)
         targets.append(tgt)
-    return imgs, targets
+    return img_ids, imgs, targets
 
 
 if __name__ == '__main__':
@@ -55,8 +59,9 @@ if __name__ == '__main__':
     ])
 
     coco_train = CoCoDataset(root=img_path, annFile=anno_path, transform=transform)
-    loader = DataLoader(coco_train, shuffle=True, batch_size=1, collate_fn=detection_collate)
-    imgs, targets = next(iter(loader))
+    loader = DataLoader(coco_train, shuffle=False, batch_size=4, collate_fn=detection_collate)
+    img_ids, imgs, targets = next(iter(loader))
+    print(img_ids)
     print(imgs)
-    print(targets[0]['boxes'])
+    print(targets)
     # [{'boxes': torch.size([6, 4])}, {}, {},...]

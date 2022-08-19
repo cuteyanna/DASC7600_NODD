@@ -5,7 +5,7 @@ import albumentations as A
 
 load_model = False
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-NUM_EPOCH = 1
+NUM_EPOCH = 20
 lr = 1e-4
 img_path = 'Data/val2017'
 anno_path = 'Data/annotations_trainval2017/annotations/instances_val2017.json'

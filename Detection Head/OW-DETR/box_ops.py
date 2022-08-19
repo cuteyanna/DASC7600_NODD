@@ -6,8 +6,9 @@ def rescale_bboxes(out_bbox, size):
     img_w, img_h = size
     # convert cxcy to xyxy
     xyxy = box_cxcywh_to_xyxy(out_bbox)
-    b = xyxy * torch.tensor([img_w, img_h, img_w, img_h], dtype=torch.float32)
-    return b
+    device = out_bbox.device
+    b = xyxy * torch.tensor([img_w, img_h, img_w, img_h], dtype=torch.float32).to(device)
+    return b.long()
 
 
 def box_cxcywh_to_xyxy(x):
