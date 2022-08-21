@@ -123,7 +123,8 @@ class OWDETRLoss(nn.Module):
 
             other_idx = np.setdiff1d(queries.numpy(), query_idx)  # return not matched indices
 
-            out_matched_cls = out_prob[i, query_idx, 0:-1]  # the class prob of matched queries predicted in image i -> (100, 90)
+            out_matched_cls = out_prob[i, query_idx,
+                              0:-1]  # the class prob of matched queries predicted in image i -> (100, 90)
             out_matched_obj = out_prob[i, query_idx, -1]  # the objectiveness of matched queries predicted in image i
             out_matched_bbox = out_bbox[i, query_idx, :]  # the bbox of matched queries predicted in image i
 
@@ -133,12 +134,40 @@ class OWDETRLoss(nn.Module):
 
             # Suppose 80 boxes unmatched
             upsample_out_bbox = box_cxcywh_to_xyxy(out_bbox[i]) * \
-                             torch.tensor([w, h, w, h], dtype=torch.float32).to(device)  # shape -> (100, 4)
+                                torch.tensor([w, h, w, h], dtype=torch.float32).to(device)  # shape -> (100, 4)
             # means_bbox tensor([0,0,...0]) shape of (100)
             means_bbox = torch.zeros(queries.shape[0])
 
             # (8, 8) -> (1, 1, 8, 8) -> (1, 1, h, w) -> (h, w)
             up_img_feat = upsample(mean_img_feat[i].unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
+
+            original_img_bbox = targets[i]['boxes'].to(device)  # (num_box, 4)
+            original_img_bbox = box_cxcywh_to_xyxy(original_img_bbox)
+            # for n in range(len(original_img_bbox)):
+            #     if original_img_bbox[n][0] < 0:
+            #         original_img_bbox[n][0] = 0
+            #
+            #     if original_img_bbox[n][1] < 0:
+            #         original_img_bbox[n][1] = 0
+            #     if original_img_bbox[n][2] > w:
+            #         original_img_bbox[n][2] = w
+            #     if original_img_bbox[n][3] > h:
+            #         original_img_bbox[n][3] = h
+
+            original_img_bbox[..., 0] = torch.maximum(original_img_bbox[..., 0],
+                                                      torch.zeros_like(original_img_bbox[..., 0]))
+            original_img_bbox[..., 1] = torch.maximum(original_img_bbox[..., 1],
+                                                      torch.zeros_like(original_img_bbox[..., 1]))
+            original_img_bbox[..., 2] = torch.minimum(original_img_bbox[..., 2],
+                                                      torch.ones_like(original_img_bbox[..., 2]) * w)
+            original_img_bbox[..., 3] = torch.minimum(original_img_bbox[..., 3],
+                                                      torch.ones_like(original_img_bbox[..., 2]) * h)
+
+            score = 0
+            for m in range(original_img_bbox.shape[0]):
+                xmin, ymin, xmax, ymax = original_img_bbox[m, :].long()
+                score += torch.mean(up_img_feat[ymin:ymax, xmin:xmax])
+            score /= original_img_bbox.shape[0]
 
             for j in range(queries.shape[0]):
                 if j in other_idx:
@@ -149,11 +178,17 @@ class OWDETRLoss(nn.Module):
                     ymax = min(ymax, h)
                     means_bbox[j] = torch.mean(up_img_feat[ymin:ymax, xmin:xmax])
                     if torch.isnan(means_bbox[j]):
-                        means_bbox[j] = -10e10
+                        means_bbox[j] = -1e10
                 else:
-                    means_bbox[j] = -10e10
+                    means_bbox[j] = -1e10
 
-            _, unmatched_topK_idx = torch.topk(means_bbox, self.top_unk)
+            means_bbox = means_bbox.to(device)
+            # _, unmatched_topK_idx = torch.topk(means_bbox, self.top_unk)
+            unmatched_topK_idx = []
+            for idx, value in enumerate(means_bbox):
+                if value >= score:
+                    unmatched_topK_idx.append(idx)
+            # print(unmatched_topK_idx)
 
             tgt_img_cls = targets[i]['labels'][tgt_idx].to(device)  # (N, 1)
             tgt_img_bbox = targets[i]['boxes'][tgt_idx, :].to(device)  # (N, 4)
@@ -178,8 +213,9 @@ class OWDETRLoss(nn.Module):
             unk_cls_loss += self.mse(out_unmatched_cls, tgt_pseudo_cls)
 
             # unmatched (not in topk list) Queries objectiveness confidence should be 0
-            tgt_pseudo_obj = torch.ones_like(out_prob[i, unmatched_topK_idx, -1]).to(device)
-            obj_loss += self.bce(out_prob[i, unmatched_topK_idx, -1], tgt_pseudo_obj)
+            if unmatched_topK_idx:
+                tgt_pseudo_obj = torch.ones_like(out_prob[i, unmatched_topK_idx, -1]).to(device)
+                obj_loss += self.bce(out_prob[i, unmatched_topK_idx, -1], tgt_pseudo_obj)
 
             # out_unmatched_obj_without = out_prob[i, np.setdiff1d(other_idx, unmatched_topK_idx), -1]
             # obj_loss += self.bce(out_unmatched_obj_without, torch.zeros_like(out_unmatched_obj_without).to(device))
@@ -187,11 +223,15 @@ class OWDETRLoss(nn.Module):
         loss = (cls_loss + unk_cls_loss) * self.lambda_cls + obj_loss * self.lambda_cls \
                + iou_loss * self.lambda_iou + L1_loss * self.lambda_L1
 
+        print('class loss: {}, obj loss: {}, iou loss: {}, L1 loss: {}'.format(cls_loss + unk_cls_loss,
+                                                                               obj_loss,
+                                                                               iou_loss,
+                                                                               L1_loss))
+
         return loss
 
 
 if __name__ == '__main__':
-
     N = 16
     num_queries = 100
     num_class = 91

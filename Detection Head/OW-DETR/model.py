@@ -19,12 +19,8 @@ class Model(object):
         self.dataset_config = self._parse_configs(dataset_config)
         self.model_config = self._parse_configs(model_config)
 
-        self.backbone = None
-        self.model = None
-        self.loader = None
-
-        self.build_dataset()
-        self.build()
+        self.loader = self.build_dataset()
+        self.backbone, self.model = self.build()
 
     @staticmethod
     def _parse_configs(path):
@@ -41,41 +37,46 @@ class Model(object):
 
     def build_dataset(self):
         coco_train = CoCoDataset(**self.dataset_config.get('set_param'), transform=transform)
-        self.loader = DataLoader(coco_train, collate_fn=detection_collate, **self.dataset_config.get('loader_param'))
+        loader = DataLoader(coco_train, collate_fn=detection_collate, **self.dataset_config.get('loader_param'))
+        return loader
 
     def build(self):
-        self.backbone = Backbone(**self.model_config.get('backbone_param'))
-        self.model = DETR(**self.model_config.get('detr_param')).to(self.model_config.get('device'))
+        backbone = Backbone(**self.model_config.get('backbone_param'))
+        model = DETR(**self.model_config.get('detr_param')).to(self.model_config.get('device'))
+        return backbone, model
 
     def train(self):
         optim = Adam(self.model.parameters(), lr=self.model_config.get('lr'))
         criterion = OWDETRLoss(**self.model_config.get('loss'))
-        img_ids, tensor_list, targets = next(iter(self.loader))
+        # img_ids, tensor_list, targets = next(iter(self.loader))
         for epoch in range(self.model_config.get('num_epoch')):
-            # tensor list means a list of img tensors
-            if epoch % 2 == 0 and epoch != 0:
-                checkpoint = {'model': self.model.state_dict(), 'optim': optim.state_dict()}
-                save_checkpoint(checkpoint, epoch)
+            for img_ids, tensor_list, targets in self.loader:
+                # tensor list means a list of img tensors
+                if self.model_config.get('save_model') and epoch % 2 == 0 and epoch != 0:
+                    checkpoint = {'model': self.model.state_dict(), 'optim': optim.state_dict()}
+                    save_checkpoint(checkpoint, epoch)
 
-            nested_list = nested_tensor_from_tensor_list(tensor_list)
-            h, w = nested_list.mask.shape[1], nested_list.mask.shape[2]
+                nested_list = nested_tensor_from_tensor_list(tensor_list)
+                h, w = nested_list.mask.shape[1], nested_list.mask.shape[2]
 
-            img_feature = self.backbone(nested_list)['0'].tensors  # torch.Size([16, 2048, 20, 20])
-            img_feature = img_feature.to(device)
-            preds = self.model(img_feature)
-            # preds = model(img_feature)
-            loss = criterion(img_feature, preds, targets, size=(h, w))
+                img_feature = self.backbone(nested_list)['0'].tensors  # torch.Size([16, 2048, 20, 20])
+                img_feature = img_feature.to(device)
+                img_feature = img_feature.sigmoid()
+                preds = self.model(img_feature)
+                # preds = model(img_feature)
+                loss = criterion(img_feature, preds, targets, size=(h, w))
 
-            print(loss.item())
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
+                print(loss.item())
+                optim.zero_grad()
+                loss.backward()
+                optim.step()
 
     def eval(self):
         img_ids, tensor_list, targets = next(iter(self.loader))
         nested_list = nested_tensor_from_tensor_list(tensor_list)
         img_feature = self.backbone(nested_list)['0'].tensors  # torch.Size([16, 2048, 20, 20])
         img_feature = img_feature.to(self.model_config.get('device'))
+        img_feature = img_feature.sigmoid()
         preds = self.model(img_feature)
         pred_boxes = preds['pred_boxes']
         boxes = box_cxcywh_to_xyxy(pred_boxes)

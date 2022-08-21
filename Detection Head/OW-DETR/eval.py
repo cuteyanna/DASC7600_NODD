@@ -3,6 +3,14 @@ from collections import Counter
 from box_ops import box_iou
 
 
+def eval_format_convert(outputs, targets):
+    # outputs -> {"pred_logits": (N, num_queries, num_class+1),
+    #             "pred_boxes" : (N, num_queries, 4)}
+    pred_boxes = torch.cat([outputs['pred_logits'], outputs['pred_boxes']], dim=-1)
+
+    return pred_boxes, targets
+
+
 def mean_average_precision(pred_boxes, true_boxes, iou_threshold=0.5, num_class=90):
     """
     :param pred_boxes: predict boxes -> list: [[train_idx, class_pred, prob, x1, y1, x2, y2], [], [], ...]
@@ -14,7 +22,7 @@ def mean_average_precision(pred_boxes, true_boxes, iou_threshold=0.5, num_class=
 
     average_precision = []
     epsilon = 1e-6
-
+    # mAP -> mean AP -> average AP of all cls
     # calculate AP for each class
     for cls in range(num_class):
         detections = []
