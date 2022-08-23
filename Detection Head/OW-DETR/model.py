@@ -50,6 +50,7 @@ class Model(object):
         criterion = OWDETRLoss(**self.model_config.get('loss'))
         # img_ids, tensor_list, targets = next(iter(self.loader))
         for epoch in range(self.model_config.get('num_epoch')):
+            print('='*30, ' EPOCH {} '.format(epoch), '='*30)
             for img_ids, tensor_list, targets in self.loader:
                 # tensor list means a list of img tensors
                 if self.model_config.get('save_model') and epoch % 2 == 0 and epoch != 0:
@@ -64,8 +65,8 @@ class Model(object):
                 img_feature = img_feature.sigmoid()
                 preds = self.model(img_feature)
                 # preds = model(img_feature)
+                print(img_ids)
                 loss = criterion(img_feature, preds, targets, size=(h, w))
-
                 print(loss.item())
                 optim.zero_grad()
                 loss.backward()
