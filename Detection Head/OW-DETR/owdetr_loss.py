@@ -76,7 +76,7 @@ class HungarianMatcher(nn.Module):
 
 
 class OWDETRLoss(nn.Module):
-    def __init__(self, lambda_cls, lambda_iou, lambda_L1, topK):
+    def __init__(self, lambda_cls, lambda_iou, lambda_L1):
         super(OWDETRLoss, self).__init__()
         self.lambda_cls = lambda_cls
         self.lambda_iou = lambda_iou
@@ -85,8 +85,6 @@ class OWDETRLoss(nn.Module):
         self.bce = nn.BCELoss()
         self.ce = nn.CrossEntropyLoss()
         self.mse = nn.MSELoss()
-        self.top_unk = topK
-        self.num_classes = 91
 
     def forward(self, img_features, outputs, targets, size):
         # out_prob = outputs["pred_logits"].softmax()  # (N, num_queries, num_cls + 1)
@@ -120,11 +118,12 @@ class OWDETRLoss(nn.Module):
             # i indicate the image i
             # query_idx -> tensor([14, 16, ...])
             # tgt_idx -> tensor([4, 7, ...])
+            if query_idx.size == 0:
+                continue
 
             other_idx = np.setdiff1d(queries.numpy(), query_idx)  # return not matched indices
 
-            out_matched_cls = out_prob[i, query_idx,
-                              0:-1]  # the class prob of matched queries predicted in image i -> (100, 90)
+            out_matched_cls = out_prob[i, query_idx, 0:-1]  # the cls prob of match queries predict in img i -> (100,90)
             out_matched_obj = out_prob[i, query_idx, -1]  # the objectiveness of matched queries predicted in image i
             out_matched_bbox = out_bbox[i, query_idx, :]  # the bbox of matched queries predicted in image i
 
@@ -143,16 +142,6 @@ class OWDETRLoss(nn.Module):
 
             original_img_bbox = targets[i]['boxes'].to(device)  # (num_box, 4)
             original_img_bbox = box_cxcywh_to_xyxy(original_img_bbox)
-            # for n in range(len(original_img_bbox)):
-            #     if original_img_bbox[n][0] < 0:
-            #         original_img_bbox[n][0] = 0
-            #
-            #     if original_img_bbox[n][1] < 0:
-            #         original_img_bbox[n][1] = 0
-            #     if original_img_bbox[n][2] > w:
-            #         original_img_bbox[n][2] = w
-            #     if original_img_bbox[n][3] > h:
-            #         original_img_bbox[n][3] = h
 
             original_img_bbox[..., 0] = torch.maximum(original_img_bbox[..., 0],
                                                       torch.zeros_like(original_img_bbox[..., 0]))
@@ -167,7 +156,7 @@ class OWDETRLoss(nn.Module):
             for m in range(original_img_bbox.shape[0]):
                 xmin, ymin, xmax, ymax = original_img_bbox[m, :].long()
                 score += torch.mean(up_img_feat[ymin:ymax, xmin:xmax])
-            score /= original_img_bbox.shape[0]
+            score /= original_img_bbox.shape[0] + 1e-06
 
             for j in range(queries.shape[0]):
                 if j in other_idx:
@@ -232,7 +221,7 @@ class OWDETRLoss(nn.Module):
 
 
 if __name__ == '__main__':
-    N = 16
+    N = 3
     num_queries = 100
     num_class = 91
 
@@ -242,7 +231,8 @@ if __name__ == '__main__':
     targets = []
     for _ in range(N):
         tmp = {}
-        num_obj = np.random.randint(2, 20)
+        num_obj = np.random.randint(0, 2)
+        print('num_obj: {}'.format(num_obj))
         tmp['labels'] = torch.randint(0, 90, [num_obj])
         boxes = torch.randn(num_obj, 4)
         # Add here just to make sure the right bottom corner value is larger than the left top
@@ -250,5 +240,6 @@ if __name__ == '__main__':
         tmp['boxes'] = boxes.sigmoid()
         targets.append(tmp)
 
-    # loss_fn = DETRLoss(1, 1, 1)
-    # print(loss_fn(preds, targets, size=(500, 800)))
+    loss_fn = OWDETRLoss(1, 1, 1)
+    img_features = torch.randn(16, 2048, 20, 20)
+    print(loss_fn(img_features, preds, targets, size=(500, 800)))
