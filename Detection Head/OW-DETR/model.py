@@ -1,8 +1,13 @@
+import os
+
 import yaml
 import json
+import calendar
+import time
 
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from backbone import Backbone
 from box_ops import box_cxcywh_to_xyxy
@@ -32,6 +37,10 @@ class Model(object):
         output['box'] = output['box'].detach().cpu().numpy().tolist()
         output['cls'] = output['cls'].detach().cpu().numpy().tolist()
         json_string = json.dumps(output)
+
+        if not os.path.exists('outputs/'):
+            os.makedirs('outputs/')
+
         with open('outputs/{}.json'.format(output['img_id']), 'w') as outfile:
             outfile.write(json_string)
 
@@ -48,8 +57,11 @@ class Model(object):
     def train(self):
         optim = Adam(self.model.parameters(), lr=self.model_config.get('lr'))
         criterion = OWDETRLoss(**self.model_config.get('loss'))
+        writer = SummaryWriter()
         # img_ids, tensor_list, targets = next(iter(self.loader))
+        step = 0
         for epoch in range(self.model_config.get('num_epoch')):
+            print('='*30, ' EPOCH {} '.format(epoch), '='*30)
             for img_ids, tensor_list, targets in self.loader:
                 # tensor list means a list of img tensors
                 if self.model_config.get('save_model') and epoch % 2 == 0 and epoch != 0:
@@ -64,12 +76,21 @@ class Model(object):
                 img_feature = img_feature.sigmoid()
                 preds = self.model(img_feature)
                 # preds = model(img_feature)
+                # print(img_ids)
                 loss = criterion(img_feature, preds, targets, size=(h, w))
 
-                print(loss.item())
+                writer.add_scalar('Total Loss', loss.get('total loss'), step)
+                writer.add_scalar('Class Loss', loss.get('class loss'), step)
+                writer.add_scalar('Objectiveness Loss', loss.get('obj loss'), step)
+                writer.add_scalar('IOU Loss', loss.get('iou loss'), step)
+                writer.add_scalar('L1 Loss', loss.get('L1 loss'), step)
+
                 optim.zero_grad()
-                loss.backward()
+                loss.get('total loss').backward()
                 optim.step()
+
+                step += 1
+        writer.close()
 
     def eval(self):
         img_ids, tensor_list, targets = next(iter(self.loader))
@@ -95,4 +116,4 @@ class Model(object):
 if __name__ == '__main__':
     model = Model(dataset_config='configs/dataset_config.yml', model_config='configs/model_config.yml')
     model.train()
-    model.eval()
+    # model.eval()
