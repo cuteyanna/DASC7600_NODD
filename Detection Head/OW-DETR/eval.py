@@ -3,15 +3,16 @@ from collections import Counter
 from box_ops import box_iou
 
 
-def eval_format_convert(outputs, targets):
+def eval_format_convert(train_idx, outputs, targets):
     # outputs -> {"pred_logits": (N, num_queries, num_class+1),
     #             "pred_boxes" : (N, num_queries, 4)}
     pred_boxes = torch.cat([outputs['pred_logits'], outputs['pred_boxes']], dim=-1)
+    # pred_boxes -> (N, num_queries, num_class+1+4)
 
     return pred_boxes, targets
 
 
-def mean_average_precision(pred_boxes, true_boxes, iou_threshold=0.5, num_class=90):
+def mean_average_precision(pred_boxes, true_boxes, iou_threshold=0.5, num_class=91):
     """
     :param pred_boxes: predict boxes -> list: [[train_idx, class_pred, prob, x1, y1, x2, y2], [], [], ...]
     :param true_boxes: target boxes -> list: [[train_idx, class, x1, y1, x2, y2], [], [], ...]

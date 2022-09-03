@@ -117,7 +117,6 @@ class Decoder(nn.Module):
         out = x
         for layer in self.layers:
             out = layer(out, enc_out + pos, enc_out)
-
         cls = self.fc_cls(out)
         bbx = self.fc_bbx(out)
         bbx = bbx.sigmoid()  # the location values should be limited in (0, 1)
@@ -160,13 +159,14 @@ class DETR(nn.Module):
 
 if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    test = torch.rand(1, 2048, 7, 7).to(device)
+    test = torch.rand(16, 2048, 16, 16).to(device)
     model = DETR(num_cls=6, num_layers=3, embed_size=256, heads=8, dropout=0, forward_expansion=4)
     model = model.to(device)
     pred = model(test)
     cls_test = pred['pred_logits']
     bbx_test = pred['pred_boxes']
-
+    # print(cls_test.shape)
+    # print(bbx_test.shape)
 
 
 

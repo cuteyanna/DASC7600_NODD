@@ -77,7 +77,7 @@ def bbox_normalize(box, w, h):
 
 
 if __name__ == '__main__':
-    test_box1 = torch.as_tensor([[0.1, 0.1, 0.3, 0.3], [0.4, 0.3, 0.8, 0.8], [0.2, 0.2, 0.9, 0.9]])
+    test_box1 = torch.as_tensor([0.1, 0.1, 0.3, 0.3])
     test_box2 = torch.as_tensor([[0.1, 0.1, 0.3, 0.3], [0.2, 0.2, 0.8, 0.8], [0.2, 0.2, 0.9, 0.9]])
     print(torch.sum(box_iou(test_box1, test_box2)))
     print(bbox_normalize(test_box1, 5, 8))

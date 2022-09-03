@@ -17,7 +17,7 @@ loader = DataLoader(coco_train, shuffle=False, batch_size=16, collate_fn=detecti
 backbone = Backbone('resnet50', train_backbone=False, return_interm_layers=False)
 model = DETR(num_cls=91, num_layers=6, embed_size=256, heads=8, dropout=0, forward_expansion=4).to(device)
 optim = Adam(model.parameters(), lr=lr)
-criterion = OWDETRLoss(lambda_cls=lambda_cls, lambda_iou=lambda_iou, lambda_L1=lambda_L1, topK=5)
+criterion = OWDETRLoss(lambda_cls=lambda_cls, lambda_iou=lambda_iou, lambda_L1=lambda_L1)
 
 if load_model:
     model, optim = load_checkpoint(torch.load('last_checkpoint.pth.tar'), model, optim)

@@ -212,12 +212,12 @@ class OWDETRLoss(nn.Module):
         loss = (cls_loss + unk_cls_loss) * self.lambda_cls + obj_loss * self.lambda_cls \
                + iou_loss * self.lambda_iou + L1_loss * self.lambda_L1
 
-        print('class loss: {}, obj loss: {}, iou loss: {}, L1 loss: {}'.format(cls_loss + unk_cls_loss,
-                                                                               obj_loss,
-                                                                               iou_loss,
-                                                                               L1_loss))
-
-        return loss
+        # return loss
+        return {'class loss': cls_loss + unk_cls_loss,
+                'obj loss': obj_loss,
+                'iou loss': iou_loss,
+                'L1 loss': L1_loss,
+                'total loss': loss}
 
 
 if __name__ == '__main__':

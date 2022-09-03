@@ -20,7 +20,7 @@ class CoCoDataset(CocoDetection):
         # {'label':tensor, 'boxes':tensor}
         for item in tgt:
             item['category_id'] = torch.as_tensor([item['category_id']])
-            item['bbox'] = torch.as_tensor(item['bbox']).unsqueeze(0)
+            item['bbox'] = torch.as_tensor(item['bbox']).reshape(-1, 4)
 
             tgt_dict['labels'] = torch.cat([tgt_dict['labels'], item['category_id']])
             tgt_dict['boxes'] = torch.cat([tgt_dict['boxes'], item['bbox']])
@@ -29,6 +29,9 @@ class CoCoDataset(CocoDetection):
             img = self.transform(img)
 
         return img_id, (img, tgt_dict)
+
+    def __len__(self):
+        return 1600
 
 
 def detection_collate(batch):
@@ -59,9 +62,10 @@ if __name__ == '__main__':
     ])
 
     coco_train = CoCoDataset(root=img_path, annFile=anno_path, transform=transform)
-    loader = DataLoader(coco_train, shuffle=False, batch_size=4, collate_fn=detection_collate)
-    img_ids, imgs, targets = next(iter(loader))
-    print(img_ids)
-    print(imgs)
-    print(targets)
+    loader = DataLoader(coco_train, shuffle=False, batch_size=16, collate_fn=detection_collate)
+    # img_ids, imgs, targets = next(iter(loader))
+    for epoch in range(3):
+        print('='*30, 'EPOCH {}'.format(epoch), '='*30)
+        for img_ids, imgs, targets in loader:
+            print(targets[0]['boxes'].shape)
     # [{'boxes': torch.size([6, 4])}, {}, {},...]
